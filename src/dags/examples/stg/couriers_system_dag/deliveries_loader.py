@@ -31,7 +31,8 @@ class DeliveryOriginRepository:
             "sort_field": "date",
             "sort_direction": "asc",
             "offset": offset,
-            "limit": limit
+            "limit": limit,
+            "from": (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
         }
         objs = []
         try:
@@ -84,11 +85,12 @@ class DeliveryLoader:
             if not wf_setting:
                 wf_setting = EtlSetting(id=0, workflow_key=self.WF_KEY, workflow_settings={self.OFFSET: 0})
             offset = wf_setting.workflow_settings[self.OFFSET]
-            load_queue = self.origin.list_deliveries(offset, self.BATCH_LIMIT)
-            self.log.info(f"Found {len(load_queue)} deliveries to load.")
-            if len(load_queue) == 0:
-                self.log.info("Quitting.")
-                return
+            while True:
+                load_queue = self.origin.list_deliveries(offset, self.BATCH_LIMIT) 
+                self.log.info(f"Found {len(load_queue)} deliveries to load.")
+                if len(load_queue) == 0:
+                    self.log.info("No more deliveries to load. Quitting.")
+                    break
             for delivery in load_queue:
                 self.stg.insert_delivery(conn, delivery)
             wf_setting.workflow_settings[self.OFFSET] = offset + len(load_queue)
